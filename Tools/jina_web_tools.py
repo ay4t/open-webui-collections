@@ -4,13 +4,7 @@ author: aahadr
 author_url: https://github.com/ay4t
 funding_url: https://github.com/open-webui
 version: 0.1.0
-description: Scrape websites found in the query using Jina's r.jina.ai service
-
-required:
-    - requests
-    - asyncio
-    - inspect
-    - re
+description: Scrape websites found in the query using Jina service
 """
 
 import requests
@@ -24,21 +18,12 @@ import time
 from urllib.parse import urljoin
 import re
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-if not logger.handlers:
-    handler = logging.StreamHandler()
-    handler.setFormatter(
-        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    )
-    logger.addHandler(handler)
-
-
 class Tools:
     def __init__(self):
         self.citation = True
         self.base_url = "r.jina.ai/"
-        self.timeout = 30  # timeout in seconds
+        
+        self.timeout = 30  
         self.headers = {
             "X-No-Cache": "true",
             "X-With-Images-Summary": "true",
@@ -51,23 +36,22 @@ class Tools:
     async def jina_web_scrape(
         self, 
         query: str, 
-        event_emitter__: Optional[Callable[[dict], Any]] = None
+        __event_emitter__: Optional[Callable[[dict], Any]] = None
     ) -> str:
         """
         Scrape websites found in the query using Jina's r.jina.ai service.
         
         :param query: The text that may contain one or more URLs to scrape.
-        :param event_emitter__: An optional event emitter function.
         """
-        if event_emitter__ is not None and not callable(event_emitter__):
-            raise ValueError("event_emitter__ must be callable")
+
+        if __event_emitter__ is not None and not callable(__event_emitter__):
+            raise ValueError("event_emitter must be callable")
             
-        emitter = EventEmitter(event_emitter__)
+        emitter = EventEmitter(__event_emitter__)
         
         # Extract URLs from query
         urls = re.findall(self.url_pattern, query)
         if not urls:
-            logger.info("No valid URLs found in the input")
             await emitter.status("No valid URLs found in the input", "complete", True)
             return "No valid URLs found to scrape."
 
@@ -132,10 +116,6 @@ class Tools:
 
 @dataclass
 class EventEmitter:
-    """
-    Helper wrapper for OpenWebUI event emissions.
-    Handles various types of events and provides debug capabilities.
-    """
     event_emitter: Optional[Callable[[dict], Any]] = None
     debug: bool = False
     _status_prefix: Optional[str] = None
