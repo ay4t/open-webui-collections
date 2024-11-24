@@ -1,10 +1,23 @@
-import os
+"""
+title: Jina Web Scrape
+author: aahadr
+author_url: https://github.com/ay4t
+funding_url: https://github.com/open-webui
+version: 0.1.0
+description: Scrape websites found in the query using Jina's r.jina.ai service
+
+required:
+    - requests
+    - asyncio
+    - inspect
+    - re
+"""
+
 import requests
-from datetime import datetime
-import typing
+from dataclasses import dataclass
+from typing import List, Dict, Optional, Union, Callable, Any
 import asyncio
 import inspect
-import json
 import sys
 import logging
 import time
@@ -38,15 +51,18 @@ class Tools:
     async def jina_web_scrape(
         self, 
         query: str, 
-        __event_emitter__: typing.Callable[[dict], typing.Any] = None
+        event_emitter__: Optional[Callable[[dict], Any]] = None
     ) -> str:
         """
         Scrape websites found in the query using Jina's r.jina.ai service.
         
         :param query: The text that may contain one or more URLs to scrape.
-        :param __event_emitter__: An optional event emitter function.
+        :param event_emitter__: An optional event emitter function.
         """
-        emitter = EventEmitter(__event_emitter__)
+        if event_emitter__ is not None and not callable(event_emitter__):
+            raise ValueError("event_emitter__ must be callable")
+            
+        emitter = EventEmitter(event_emitter__)
         
         # Extract URLs from query
         urls = re.findall(self.url_pattern, query)
@@ -114,28 +130,27 @@ class Tools:
         return "".join(all_results)
 
 
+@dataclass
 class EventEmitter:
     """
     Helper wrapper for OpenWebUI event emissions.
     Handles various types of events and provides debug capabilities.
     """
+    event_emitter: Optional[Callable[[dict], Any]] = None
+    debug: bool = False
+    _status_prefix: Optional[str] = None
 
-    def __init__(
-        self,
-        event_emitter: typing.Callable[[dict], typing.Any] = None,
-        debug: bool = False,
-    ):
-        self.event_emitter = event_emitter
-        self._debug = debug
-        self._status_prefix = None
+    def __post_init__(self):
+        if self.event_emitter is not None and not callable(self.event_emitter):
+            raise ValueError("event_emitter must be callable")
 
-    def set_status_prefix(self, status_prefix):
+    def set_status_prefix(self, status_prefix: str) -> None:
         """Set a prefix for all status messages."""
         self._status_prefix = status_prefix
 
-    async def _emit(self, typ, data):
+    async def _emit(self, typ: str, data: dict) -> None:
         """Internal method to emit events."""
-        if self._debug:
+        if self.debug:
             print(f"Emitting {typ} event: {data}", file=sys.stderr)
         if not self.event_emitter:
             return None
@@ -149,8 +164,8 @@ class EventEmitter:
             return await maybe_future
 
     async def status(
-        self, description="Unknown state", status="in_progress", done=False
-    ):
+        self, description: str = "Unknown state", status: str = "in_progress", done: bool = False
+    ) -> None:
         """Emit a status update event."""
         if self._status_prefix is not None:
             description = f"{self._status_prefix}{description}"
@@ -162,21 +177,12 @@ class EventEmitter:
                 "done": done,
             },
         )
-        if not done and len(description) <= 1024:
-            await self._emit(
-                "status",
-                {
-                    "status": status,
-                    "description": description,
-                    "done": done,
-                },
-            )
 
-    async def fail(self, description="Unknown error"):
+    async def fail(self, description: str = "Unknown error") -> None:
         """Emit a failure event."""
         await self.status(description=description, status="error", done=True)
 
-    async def message(self, content):
+    async def message(self, content: str) -> None:
         """Emit a message event."""
         await self._emit(
             "message",
@@ -185,7 +191,7 @@ class EventEmitter:
             },
         )
 
-    async def citation(self, document, metadata, source):
+    async def citation(self, document: str, metadata: dict, source: str) -> None:
         """Emit a citation event."""
         await self._emit(
             "citation",
@@ -196,7 +202,7 @@ class EventEmitter:
             },
         )
 
-    async def code_execution_result(self, output):
+    async def code_execution_result(self, output: str) -> None:
         """Emit a code execution result event."""
         await self._emit(
             "code_execution_result",

@@ -1,36 +1,35 @@
 import requests
-import typing
-import logging
+from dataclasses import dataclass
+from typing import List, Dict, Optional, Union, Callable, Any
 import asyncio
 import inspect
-from typing import List, Dict, Optional, Union
 import sys
+import logging
 import time
 
 logger = logging.getLogger(__name__)
 
+@dataclass
 class EventEmitter:
     """
     Helper wrapper for OpenWebUI event emissions.
     Handles various types of events and provides debug capabilities.
     """
+    event_emitter: Optional[Callable[[dict], Any]] = None
+    debug: bool = False
+    _status_prefix: Optional[str] = None
 
-    def __init__(
-        self,
-        event_emitter: typing.Callable[[dict], typing.Any] = None,
-        debug: bool = False,
-    ):
-        self.event_emitter = event_emitter
-        self._debug = debug
-        self._status_prefix = None
+    def __post_init__(self):
+        if self.event_emitter is not None and not callable(self.event_emitter):
+            raise ValueError("event_emitter must be callable")
 
-    def set_status_prefix(self, status_prefix):
+    def set_status_prefix(self, status_prefix: str) -> None:
         """Set a prefix for all status messages."""
         self._status_prefix = status_prefix
 
-    async def _emit(self, typ, data):
+    async def _emit(self, typ: str, data: dict) -> None:
         """Internal method to emit events."""
-        if self._debug:
+        if self.debug:
             print(f"Emitting {typ} event: {data}", file=sys.stderr)
         if not self.event_emitter:
             return None
@@ -44,8 +43,8 @@ class EventEmitter:
             return await maybe_future
 
     async def status(
-        self, description="Unknown state", status="in_progress", done=False
-    ):
+        self, description: str = "Unknown state", status: str = "in_progress", done: bool = False
+    ) -> None:
         """Emit a status update event."""
         if self._status_prefix is not None:
             description = f"{self._status_prefix}{description}"
@@ -58,11 +57,11 @@ class EventEmitter:
             },
         )
 
-    async def fail(self, description="Unknown error"):
+    async def fail(self, description: str = "Unknown error") -> None:
         """Emit a failure event."""
         await self.status(description=description, status="error", done=True)
 
-    async def citation(self, document, metadata, source):
+    async def citation(self, document: str, metadata: dict, source: str) -> None:
         """Emit a citation event."""
         await self._emit(
             "citation",
@@ -88,7 +87,7 @@ class Tools:
         k: int = 10,
         filter_dict: Optional[Dict] = None,
         score_threshold: float = 0.3,
-        __event_emitter__: typing.Callable[[dict], typing.Any] = None
+        __event_emitter__: Optional[Callable[[dict], Any]] = None
     ) -> List[Dict]:
         """
         Query the knowledge base for relevant documents.
